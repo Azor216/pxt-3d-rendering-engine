@@ -538,15 +538,40 @@ namespace Render3D {
     //% blockId=r3d_update_physics block="update player physics"
     //% group="Player" weight=95
     export function updatePhysics(): void {
-        const cam = ensureScene().camera
+        const sc = ensureScene()
+        const cam = sc.camera
         const eyeH = _crouching ? _crouchHeight : _standHeight
-        const floorY = _groundY + eyeH
 
         // Apply gravity
         _velY -= _gravity
         cam.position.y += _velY
 
-        // Ground check
+        // Find highest platform under player's feet
+        let bestFloor = _groundY
+        const footY = cam.position.y - eyeH
+        const prevFootY = footY - _velY  // where feet were before this frame
+        const cx = cam.position.x
+        const cz = cam.position.z
+        for (let i = 0; i < sc.meshes.length; i++) {
+            const m = sc.meshes[i]
+            if (!m._collider) continue
+            const hw = m._bboxW * m._scale / 2
+            const hd = m._bboxD * m._scale / 2
+            const hh = m._bboxH * m._scale / 2
+            const dx = cx - m.position.x
+            const dz = cz - m.position.z
+            // Player is within XZ bounds of platform
+            if (dx > -hw && dx < hw && dz > -hd && dz < hd) {
+                const platTop = m.position.y + hh
+                // Feet crossed or are on platform surface (was above, now at or below)
+                if (platTop > bestFloor && footY <= platTop + 0.05 && prevFootY >= platTop - 0.3) {
+                    bestFloor = platTop
+                }
+            }
+        }
+
+        const floorY = bestFloor + eyeH
+        // Ground/platform check
         if (cam.position.y <= floorY) {
             cam.position.y = floorY
             _velY = 0
@@ -849,7 +874,8 @@ namespace Render3D {
     const CAM_HEIGHT = 2.0  // výška těla kamery (od nohou k očím)
 
     function _checkCollisionXZ(sc: Scene3D, cx: number, cy: number, cz: number): boolean {
-        const camBottom = cy - CAM_HEIGHT
+        const eyeH = _crouching ? _crouchHeight : _standHeight
+        const camBottom = cy - eyeH
         for (let i = 0; i < sc.meshes.length; i++) {
             const m = sc.meshes[i]
             if (!m._collider) continue
@@ -860,6 +886,8 @@ namespace Render3D {
             const dz = cz - m.position.z
             const boxTop = m.position.y + hh
             const boxBottom = m.position.y - hh
+            // Skip if player feet are above platform (standing on it)
+            if (camBottom >= boxTop - 0.15) continue
             // XZ overlap + Y overlap (camera body vs box)
             if (dx > -hw && dx < hw && dz > -hd && dz < hd &&
                 camBottom < boxTop && cy > boxBottom) {
@@ -872,9 +900,10 @@ namespace Render3D {
     // Push camera out of any colliding object (iterate for safety)
     function _pushOut(sc: Scene3D): void {
         const cam = sc.camera
+        const eyeH = _crouching ? _crouchHeight : _standHeight
         for (let iter = 0; iter < 3; iter++) {
             let pushed = false
-            const camBottom = cam.position.y - CAM_HEIGHT
+            const camBottom = cam.position.y - eyeH
             for (let i = 0; i < sc.meshes.length; i++) {
                 const m = sc.meshes[i]
                 if (!m._collider) continue
@@ -885,6 +914,8 @@ namespace Render3D {
                 const dz = cam.position.z - m.position.z
                 const boxTop = m.position.y + hh
                 const boxBottom = m.position.y - hh
+                // Skip if standing on top
+                if (camBottom >= boxTop - 0.15) continue
                 if (dx > -hw && dx < hw && dz > -hd && dz < hd &&
                     camBottom < boxTop && cam.position.y > boxBottom) {
                     // Camera is inside – push out on shortest XZ axis
