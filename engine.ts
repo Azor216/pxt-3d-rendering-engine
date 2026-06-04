@@ -538,43 +538,43 @@ namespace Render3D {
     //% blockId=r3d_update_physics block="update player physics"
     //% group="Player" weight=95
     export function updatePhysics(): void {
-        const sc = ensureScene()
-        const cam = sc.camera
+        let sc = ensureScene()
+        let cam = sc.camera
         let eyeH = _standHeight
         if (_crouching) {
             eyeH = _crouchHeight
         }
 
-        // Apply gravity
+        // Gravity
         _velY = _velY - _gravity
         cam.position.y = cam.position.y + _velY
 
-        // Find highest surface under player
-        let bestFloor = _groundY
-        let footY = cam.position.y - eyeH
-        for (let i = 0; i < sc.meshes.length; i++) {
+        // Scan all colliders - find highest platform top under player XZ
+        let floor = _groundY
+        let i = 0
+        while (i < sc.meshes.length) {
             let m = sc.meshes[i]
+            i = i + 1
             if (!m._collider) {
                 continue
             }
             let hw = m._bboxW / 2
             let hd = m._bboxD / 2
             let hh = m._bboxH / 2
-            let platTop = m.position.y + hh
-            let dx = cam.position.x - m.position.x
-            let dz = cam.position.z - m.position.z
-            // Inside XZ bounds of this mesh?
-            if (dx > 0 - hw && dx < hw && dz > 0 - hd && dz < hd) {
-                // Only land on surfaces at or below feet (+small margin)
-                if (platTop > bestFloor && platTop <= footY + 0.5) {
-                    bestFloor = platTop
+            let adx = Math.abs(cam.position.x - m.position.x)
+            let adz = Math.abs(cam.position.z - m.position.z)
+            if (adx < hw && adz < hd) {
+                let top = m.position.y + hh
+                if (top > floor) {
+                    floor = top
                 }
             }
         }
 
-        let floorY = bestFloor + eyeH
-        if (cam.position.y <= floorY) {
-            cam.position.y = floorY
+        // Snap to floor
+        let targetY = floor + eyeH
+        if (cam.position.y <= targetY) {
+            cam.position.y = targetY
             _velY = 0
             _onGround = true
         }
@@ -878,70 +878,75 @@ namespace Render3D {
     // ===================== COLLISION =====================
 
     const CAM_RADIUS = 0.8
-    const CAM_HEIGHT = 2.0  // výška těla kamery (od nohou k očím)
 
     function _checkCollisionXZ(sc: Scene3D, cx: number, cy: number, cz: number): boolean {
-        const eyeH = _crouching ? _crouchHeight : _standHeight
-        const camBottom = cy - eyeH
-        for (let i = 0; i < sc.meshes.length; i++) {
-            const m = sc.meshes[i]
-            if (!m._collider) continue
-            const hw = m._bboxW * m._scale / 2 + CAM_RADIUS
-            const hh = m._bboxH * m._scale / 2
-            const hd = m._bboxD * m._scale / 2 + CAM_RADIUS
-            const dx = cx - m.position.x
-            const dz = cz - m.position.z
-            const boxTop = m.position.y + hh
-            const boxBottom = m.position.y - hh
-            // Skip if player feet are above platform (standing on it)
-            if (camBottom >= boxTop - 0.15) continue
-            // XZ overlap + Y overlap (camera body vs box)
-            if (dx > -hw && dx < hw && dz > -hd && dz < hd &&
-                camBottom < boxTop && cy > boxBottom) {
+        let eyeH = _standHeight
+        if (_crouching) { eyeH = _crouchHeight }
+        let camBottom = cy - eyeH
+        let i = 0
+        while (i < sc.meshes.length) {
+            let m = sc.meshes[i]
+            i = i + 1
+            if (!m._collider) { continue }
+            let hw = m._bboxW / 2 + CAM_RADIUS
+            let hh = m._bboxH / 2
+            let hd = m._bboxD / 2 + CAM_RADIUS
+            let boxTop = m.position.y + hh
+            let boxBottom = m.position.y - hh
+            // Skip platforms player stands on
+            if (camBottom >= boxTop - 0.2) { continue }
+            let adx = Math.abs(cx - m.position.x)
+            let adz = Math.abs(cz - m.position.z)
+            if (adx < hw && adz < hd && camBottom < boxTop && cy > boxBottom) {
                 return true
             }
         }
         return false
     }
 
-    // Push camera out of any colliding object (iterate for safety)
     function _pushOut(sc: Scene3D): void {
-        const cam = sc.camera
-        const eyeH = _crouching ? _crouchHeight : _standHeight
-        for (let iter = 0; iter < 3; iter++) {
+        let cam = sc.camera
+        let eyeH = _standHeight
+        if (_crouching) { eyeH = _crouchHeight }
+        let iter = 0
+        while (iter < 3) {
+            iter = iter + 1
             let pushed = false
-            const camBottom = cam.position.y - eyeH
-            for (let i = 0; i < sc.meshes.length; i++) {
-                const m = sc.meshes[i]
-                if (!m._collider) continue
-                const hw = m._bboxW * m._scale / 2 + CAM_RADIUS
-                const hh = m._bboxH * m._scale / 2
-                const hd = m._bboxD * m._scale / 2 + CAM_RADIUS
-                const dx = cam.position.x - m.position.x
-                const dz = cam.position.z - m.position.z
-                const boxTop = m.position.y + hh
-                const boxBottom = m.position.y - hh
-                // Skip if standing on top
-                if (camBottom >= boxTop - 0.15) continue
-                if (dx > -hw && dx < hw && dz > -hd && dz < hd &&
-                    camBottom < boxTop && cam.position.y > boxBottom) {
-                    // Camera is inside – push out on shortest XZ axis
-                    const pushXp = hw - dx
-                    const pushXn = hw + dx
-                    const pushZp = hd - dz
-                    const pushZn = hd + dz
-                    const minPush = Math.min(
-                        Math.min(pushXp, pushXn),
-                        Math.min(pushZp, pushZn)
-                    )
-                    if (minPush === pushXp) cam.position.x = m.position.x + hw + 0.01
-                    else if (minPush === pushXn) cam.position.x = m.position.x - hw - 0.01
-                    else if (minPush === pushZp) cam.position.z = m.position.z + hd + 0.01
-                    else cam.position.z = m.position.z - hd - 0.01
+            let camBottom = cam.position.y - eyeH
+            let i = 0
+            while (i < sc.meshes.length) {
+                let m = sc.meshes[i]
+                i = i + 1
+                if (!m._collider) { continue }
+                let hw = m._bboxW / 2 + CAM_RADIUS
+                let hh = m._bboxH / 2
+                let hd = m._bboxD / 2 + CAM_RADIUS
+                let boxTop = m.position.y + hh
+                let boxBottom = m.position.y - hh
+                if (camBottom >= boxTop - 0.2) { continue }
+                let dx = cam.position.x - m.position.x
+                let dz = cam.position.z - m.position.z
+                let adx = Math.abs(dx)
+                let adz = Math.abs(dz)
+                if (adx < hw && adz < hd && camBottom < boxTop && cam.position.y > boxBottom) {
+                    let pushXp = hw - dx
+                    let pushXn = hw + dx
+                    let pushZp = hd - dz
+                    let pushZn = hd + dz
+                    let minP = Math.min(Math.min(pushXp, pushXn), Math.min(pushZp, pushZn))
+                    if (minP === pushXp) {
+                        cam.position.x = m.position.x + hw + 0.01
+                    } else if (minP === pushXn) {
+                        cam.position.x = m.position.x - hw - 0.01
+                    } else if (minP === pushZp) {
+                        cam.position.z = m.position.z + hd + 0.01
+                    } else {
+                        cam.position.z = m.position.z - hd - 0.01
+                    }
                     pushed = true
                 }
             }
-            if (!pushed) break
+            if (!pushed) { break }
         }
     }
 
