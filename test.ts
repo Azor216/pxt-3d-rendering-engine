@@ -121,9 +121,6 @@ game.onUpdate(function () {
     // Fyzika
     Render3D.updatePhysics()
 
-    // Debug: zobraz Y pozici kamery
-    info.setScore(Render3D.getCameraY() * 10)
-
     // Render
     Render3D.render()
 })
