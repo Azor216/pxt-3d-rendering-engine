@@ -66,7 +66,7 @@ class Scene3D {
 // ============================================================
 
 //% color="#4b7bec" weight=100 icon="\uf1b2"
-//% groups="['Scene', 'Camera', 'Objects', 'Transform', 'Texture', 'Light']"
+//% groups="['Scene', 'Camera', 'Player', 'Objects', 'Transform', 'Texture', 'Light']"
 namespace Render3D {
     const SW = 160
     const SH = 120
@@ -75,6 +75,18 @@ namespace Render3D {
     const NEAR = 0.3
 
     let _scene: Scene3D = null
+
+    // Player physics state
+    let _velY: number = 0
+    let _groundY: number = 0
+    let _gravity: number = 0.012
+    let _jumpForce: number = 0.22
+    let _onGround: boolean = true
+    let _crouching: boolean = false
+    let _sprinting: boolean = false
+    let _standHeight: number = 2.0
+    let _crouchHeight: number = 1.0
+    let _sprintMul: number = 1.8
 
     function ensureScene(): Scene3D {
         if (!_scene) _scene = new Scene3D()
@@ -457,6 +469,104 @@ namespace Render3D {
         cam.pitch += dpitch
         if (cam.pitch > 1.2) cam.pitch = 1.2
         if (cam.pitch < -1.2) cam.pitch = -1.2
+    }
+
+    // ===================== PLAYER =====================
+
+    //% blockId=r3d_jump block="player jump"
+    //% group="Player" weight=100
+    export function jump(): void {
+        if (_onGround) {
+            _velY = _jumpForce
+            _onGround = false
+        }
+    }
+
+    //% blockId=r3d_crouch block="player crouch $enabled"
+    //% group="Player" weight=90
+    //% enabled.defl=true
+    export function crouch(enabled: boolean): void {
+        _crouching = enabled
+    }
+
+    //% blockId=r3d_sprint block="player sprint $enabled"
+    //% group="Player" weight=80
+    //% enabled.defl=true
+    export function sprint(enabled: boolean): void {
+        _sprinting = enabled
+    }
+
+    //% blockId=r3d_is_on_ground block="player is on ground"
+    //% group="Player" weight=70
+    export function isOnGround(): boolean {
+        return _onGround
+    }
+
+    //% blockId=r3d_is_crouching block="player is crouching"
+    //% group="Player" weight=69
+    export function isCrouching(): boolean {
+        return _crouching
+    }
+
+    //% blockId=r3d_is_sprinting block="player is sprinting"
+    //% group="Player" weight=68
+    export function isSprinting(): boolean {
+        return _sprinting
+    }
+
+    //% blockId=r3d_set_gravity block="set gravity $g"
+    //% group="Player" weight=60
+    //% g.defl=0.012
+    export function setGravity(g: number): void {
+        _gravity = g
+    }
+
+    //% blockId=r3d_set_jump_force block="set jump force $f"
+    //% group="Player" weight=59
+    //% f.defl=0.22
+    export function setJumpForce(f: number): void {
+        _jumpForce = f
+    }
+
+    //% blockId=r3d_set_ground_y block="set ground level $y"
+    //% group="Player" weight=58
+    //% y.defl=0
+    export function setGroundLevel(y: number): void {
+        _groundY = y
+    }
+
+    //% blockId=r3d_update_physics block="update player physics"
+    //% group="Player" weight=95
+    export function updatePhysics(): void {
+        const cam = ensureScene().camera
+        const eyeH = _crouching ? _crouchHeight : _standHeight
+        const floorY = _groundY + eyeH
+
+        // Apply gravity
+        _velY -= _gravity
+        cam.position.y += _velY
+
+        // Ground check
+        if (cam.position.y <= floorY) {
+            cam.position.y = floorY
+            _velY = 0
+            _onGround = true
+        }
+    }
+
+    //% blockId=r3d_move_player block="move player forward $fwd right $right"
+    //% group="Player" weight=85
+    //% fwd.defl=0 right.defl=0
+    export function movePlayer(fwd: number, right: number): void {
+        const mul = _sprinting ? _sprintMul : 1.0
+        const f = fwd * mul
+        const r = right * mul
+        const cam = ensureScene().camera
+        const sinY = Math.sin(cam.yaw)
+        const cosY = Math.cos(cam.yaw)
+        const mx = sinY * f + cosY * r
+        const mz = cosY * f - sinY * r
+        _moveCamera(ensureScene(), mx, mz)
     }
 
     // ===================== OBJECTS =====================
