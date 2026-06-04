@@ -71,14 +71,18 @@ let pEnd = Render3D.addBox(-3, 4.5, 58, 4, 0.5, 4, 5)
 Render3D.setCollider(pEnd, true)
 // Cílový sloup se zlatou pyramidou
 let goalPillar = Render3D.addBox(-3, 6, 58, 0.8, 2.5, 0.8, 14)
+Render3D.setCollider(goalPillar, false)
 Render3D.addPyramid(-3, 7.5, 58, 1.5, 1.2, 5)
 
-// === DEKORACE ===
-// Sloupy podél trasy
-Render3D.addBox(-4, 1.5, 0, 0.4, 3, 0.4, 12)
-Render3D.addBox(4, 1.5, 0, 0.4, 3, 0.4, 12)
-Render3D.addBox(15, 4, 17, 0.4, 3, 0.4, 12)
-Render3D.addBox(15, 4, 27, 0.4, 3, 0.4, 12)
+// === DEKORACE (bez kolizí) ===
+let d1 = Render3D.addBox(-4, 1.5, 0, 0.4, 3, 0.4, 12)
+Render3D.setCollider(d1, false)
+let d2 = Render3D.addBox(4, 1.5, 0, 0.4, 3, 0.4, 12)
+Render3D.setCollider(d2, false)
+let d3 = Render3D.addBox(15, 4, 17, 0.4, 3, 0.4, 12)
+Render3D.setCollider(d3, false)
+let d4 = Render3D.addBox(15, 4, 27, 0.4, 3, 0.4, 12)
+Render3D.setCollider(d4, false)
 
 // === KAMERA ===
 Render3D.setCameraPosition(0, 2, -2)
@@ -116,6 +120,9 @@ game.onUpdate(function () {
 
     // Fyzika
     Render3D.updatePhysics()
+
+    // Debug: zobraz Y pozici kamery
+    info.setScore(Render3D.getCameraY() * 10)
 
     // Render
     Render3D.render()

@@ -540,38 +540,39 @@ namespace Render3D {
     export function updatePhysics(): void {
         const sc = ensureScene()
         const cam = sc.camera
-        const eyeH = _crouching ? _crouchHeight : _standHeight
+        let eyeH = _standHeight
+        if (_crouching) {
+            eyeH = _crouchHeight
+        }
 
         // Apply gravity
-        _velY -= _gravity
-        cam.position.y += _velY
+        _velY = _velY - _gravity
+        cam.position.y = cam.position.y + _velY
 
-        // Find highest platform under player's feet
+        // Find highest surface under player
         let bestFloor = _groundY
-        const footY = cam.position.y - eyeH
-        const prevFootY = footY - _velY  // where feet were before this frame
-        const cx = cam.position.x
-        const cz = cam.position.z
+        let footY = cam.position.y - eyeH
         for (let i = 0; i < sc.meshes.length; i++) {
-            const m = sc.meshes[i]
-            if (!m._collider) continue
-            const hw = m._bboxW * m._scale / 2
-            const hd = m._bboxD * m._scale / 2
-            const hh = m._bboxH * m._scale / 2
-            const dx = cx - m.position.x
-            const dz = cz - m.position.z
-            // Player is within XZ bounds of platform
-            if (dx > -hw && dx < hw && dz > -hd && dz < hd) {
-                const platTop = m.position.y + hh
-                // Feet crossed or are on platform surface (was above, now at or below)
-                if (platTop > bestFloor && footY <= platTop + 0.05 && prevFootY >= platTop - 0.3) {
+            let m = sc.meshes[i]
+            if (!m._collider) {
+                continue
+            }
+            let hw = m._bboxW / 2
+            let hd = m._bboxD / 2
+            let hh = m._bboxH / 2
+            let platTop = m.position.y + hh
+            let dx = cam.position.x - m.position.x
+            let dz = cam.position.z - m.position.z
+            // Inside XZ bounds of this mesh?
+            if (dx > 0 - hw && dx < hw && dz > 0 - hd && dz < hd) {
+                // Only land on surfaces at or below feet (+small margin)
+                if (platTop > bestFloor && platTop <= footY + 0.5) {
                     bestFloor = platTop
                 }
             }
         }
 
-        const floorY = bestFloor + eyeH
-        // Ground/platform check
+        let floorY = bestFloor + eyeH
         if (cam.position.y <= floorY) {
             cam.position.y = floorY
             _velY = 0
@@ -592,6 +593,12 @@ namespace Render3D {
         const mx = sinY * f + cosY * r
         const mz = cosY * f - sinY * r
         _moveCamera(ensureScene(), mx, mz)
+    }
+
+    //% blockId=r3d_get_cam_y block="camera Y position"
+    //% group="Camera" weight=50
+    export function getCameraY(): number {
+        return Math.round(ensureScene().camera.position.y * 100) / 100
     }
 
     // ===================== OBJECTS =====================
